@@ -4,6 +4,7 @@ project(rosplan_planning_system)
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  roslib
   rospy
   std_msgs
   std_srvs
@@ -112,4 +113,12 @@ install(DIRECTORY src/VALfiles/
 
 install(DIRECTORY launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(DIRECTORY common
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(PROGRAMS common/bin/popf
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
