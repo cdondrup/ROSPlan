@@ -16,8 +16,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(FLEX REQUIRED)
-find_library(MONGO_LIBRARY NAMES mongo-cxx-driver)
-
+find_package(PkgConfig REQUIRED)
+pkg_search_module(MONGO REQUIRED mongo-cxx-driver)
 
 find_package(Boost REQUIRED COMPONENTS
   filesystem
@@ -39,10 +39,10 @@ catkin_package(
 ## Build ##
 ###########
 
-include_directories(/usr/local/include/mongo-cxx-driver)
 include_directories(include)
 include_directories(${catkin_INCLUDE_DIRS})
 include_directories(src/VALfiles)
+include_directories(${MONGO_INCLUDE_DIRS})
 
 ## val sources
 set(VAL_SOURCES
@@ -92,7 +92,7 @@ add_executable(knowledgeBase ${KNOWLEDGE_SOURCES} ${VAL_SOURCES})
 add_dependencies(knowledgeBase ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries against which to link a library or executable target
-target_link_libraries(knowledgeBase ${catkin_LIBRARIES} ${MONGO_LIBRARY})
+target_link_libraries(knowledgeBase ${MONGO_LIBRARIES} ${catkin_LIBRARIES})
 
 ##########
 ## Test ##
