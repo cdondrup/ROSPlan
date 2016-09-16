@@ -3,7 +3,8 @@
 #include <iostream>
 #include <fstream>
 
-#include "std_srvs/Empty.h"
+#include <std_srvs/Empty.h>
+#include <diagnostic_msgs/KeyValue.h>
 
 #include "rosplan_knowledge_msgs/KnowledgeUpdateService.h"
 #include "rosplan_knowledge_msgs/KnowledgeUpdateServiceArray.h"
@@ -29,15 +30,27 @@
 #include "VALVisitorOperator.h"
 #include "VALVisitorPredicate.h"
 
+#include <mongo/client/dbclient.h>
+#include <mongo/bson/bson.h>
+
 #ifndef KCL_knowledgebase
 #define KCL_knowledgebase
 
 namespace KCL_rosplan {
 
+#define INSTANCES ".instances"
+#define FACTS ".facts"
+
+typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
+
 	class KnowledgeBase
 	{
 	private:
 
+        // DB params
+        std::string dbName, dbCollection;
+        mongo::DBClientConnection client;
+        
 		// visit controllers for ROS message packing
 		VALVisitorOperator op_visitor;
 		VALVisitorPredicate pred_visitor;
@@ -49,13 +62,20 @@ namespace KCL_rosplan {
 		void removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
 
 	public:
+        
+        KnowledgeBase(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection);
 
 		// domain
 		DomainParser domain_parser;
 
 		// model
 		std::map<std::string, std::vector<std::string> > model_instances;
-		std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts;
+        std::vector<std::string> getInstances(std::string type="");
+        bool isInstance(std::string type, std::string name);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts;
+        mongo::BSONObj knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki);
+        rosplan_knowledge_msgs::KnowledgeItem bsonToKnowledgeItem(mongo::BSONObj b);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> getFacts(std::string attribute_name="");
 		std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_functions;
 		std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_goals;
 

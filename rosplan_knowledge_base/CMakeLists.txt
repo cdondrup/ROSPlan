@@ -9,7 +9,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   rosplan_knowledge_msgs
   nav_msgs
-  mongodb_store
   geometry_msgs
   diagnostic_msgs
   visualization_msgs
@@ -17,9 +16,12 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(FLEX REQUIRED)
+find_library(MONGO_LIBRARY NAMES mongo-cxx-driver)
+
 
 find_package(Boost REQUIRED COMPONENTS
   filesystem
+  thread
 )
 
 ###################################
@@ -29,7 +31,7 @@ find_package(Boost REQUIRED COMPONENTS
 ## Declare things to be passed to dependent projects
 catkin_package(
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs rosplan_knowledge_msgs nav_msgs mongodb_store geometry_msgs diagnostic_msgs visualization_msgs tf
+  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs rosplan_knowledge_msgs nav_msgs geometry_msgs diagnostic_msgs visualization_msgs tf
   DEPENDS
 )
 
@@ -37,7 +39,7 @@ catkin_package(
 ## Build ##
 ###########
 
-## include_directories(include)
+include_directories(/usr/local/include/mongo-cxx-driver)
 include_directories(include)
 include_directories(${catkin_INCLUDE_DIRS})
 include_directories(src/VALfiles)
@@ -90,7 +92,7 @@ add_executable(knowledgeBase ${KNOWLEDGE_SOURCES} ${VAL_SOURCES})
 add_dependencies(knowledgeBase ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries against which to link a library or executable target
-target_link_libraries(knowledgeBase ${catkin_LIBRARIES})
+target_link_libraries(knowledgeBase ${catkin_LIBRARIES} ${MONGO_LIBRARY})
 
 ##########
 ## Test ##

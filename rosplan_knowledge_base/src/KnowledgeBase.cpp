@@ -6,6 +6,18 @@ namespace KCL_rosplan {
 	/* knowledge query */
 	/*-----------------*/
 
+    KnowledgeBase::KnowledgeBase(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection) :
+    dbName(dbName), dbCollection(dbCollection) {
+        mongo::client::initialize();
+        try {
+                std::cout << "DB: " << dbHost << ":" << dbPort << std::endl;
+                client.connect(dbHost+":"+dbPort);
+                std::cout << "connected ok" << std::endl;
+            } catch( const mongo::DBException &e ) {
+                std::cout << "caught " << e.what() << std::endl;
+            }
+    }
+
 	bool KnowledgeBase::queryKnowledge(rosplan_knowledge_msgs::KnowledgeQueryService::Request  &req, rosplan_knowledge_msgs::KnowledgeQueryService::Response &res) {
 
 		res.all_true = true;
@@ -16,9 +28,7 @@ namespace KCL_rosplan {
 			if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
 				// check if instance exists
-				std::vector<std::string>::iterator sit;
-				sit = find(model_instances[iit->instance_type].begin(), model_instances[iit->instance_type].end(), iit->instance_name);
-				present = (sit!=model_instances[iit->instance_type].end());
+				present = isInstance(iit->instance_type, iit->instance_name);
 				
 			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
 
@@ -87,6 +97,72 @@ namespace KCL_rosplan {
 		res.success = true;
 		return true;
 	}
+    
+    
+    /*----------------*/
+	/* db queries     */
+	/*----------------*/
+    
+    std::vector<std::string> KnowledgeBase::getInstances(std::string type) {
+        db_cursor cursor = client.query(dbName+INSTANCES, type.compare("")!=0 ? QUERY("type" << type) : mongo::BSONObj());
+        std::vector<std::string> ret;
+        while(cursor->more()) {
+            mongo::BSONObj p = cursor->next();
+            ret.push_back(p.getStringField("name"));
+        }
+        return ret;
+    }
+    
+    bool KnowledgeBase::isInstance(std::string type, std::string name) {
+        db_cursor cursor = client.query(dbName+INSTANCES, QUERY("type" << type << "name" << name));
+        return cursor->more();
+    }
+    
+    mongo::BSONObj KnowledgeBase::knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObj p = BSON(
+                    "instance_type" << ki.instance_type 
+                    << "instance_name" << ki.instance_name
+                    << "attribute_name" << ki.attribute_name
+                    << "function_value" << ki.function_value
+                    << "is_negative" << ki.is_negative
+                    << "knowledge_type" << ki.knowledge_type
+                    << "values" << ab.obj()
+                    );
+        return p;
+    }
+    
+    rosplan_knowledge_msgs::KnowledgeItem KnowledgeBase::bsonToKnowledgeItem(mongo::BSONObj b) {
+        rosplan_knowledge_msgs::KnowledgeItem ki;
+        ki.instance_type = b.getField("instance_type").String();
+        ki.instance_name = b.getField("instance_name").String();
+        ki.attribute_name = b.getField("attribute_name").String();
+        ki.function_value = b.getField("function_value").Double();
+        ki.is_negative = (bool)b.getField("is_negative").Int();
+        ki.knowledge_type = b.getField("knowledge_type").Int();
+        std::vector<mongo::BSONElement> a;
+        b.getObjectField("values").elems(a);
+        for(int i = 0; i < a.size(); i++) {
+            diagnostic_msgs::KeyValue kv;
+            kv.key = a[i].embeddedObject().getField("key").String();
+            kv.value = a[i].embeddedObject().getField("value").String();
+            ki.values.push_back(kv);
+        }
+        return ki;
+    }
+    
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> KnowledgeBase::getFacts(std::string attribute_name) {
+        db_cursor cursor = client.query(dbName+FACTS, attribute_name.compare("")!=0 ? QUERY("attribute_name" << attribute_name) : mongo::BSONObj());
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> ret;
+        while(cursor->more()) {
+            mongo::BSONObj p = cursor->next();
+            ret.push_back(bsonToKnowledgeItem(p));
+        }
+        return ret;
+    }
 
 	/*----------------*/
 	/* removing items */
@@ -206,16 +282,15 @@ namespace KCL_rosplan {
 		
 		if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
-			// check if instance is already in knowledge base
-			std::vector<std::string>::iterator iit;
-			iit = find(model_instances[msg.instance_type].begin(), model_instances[msg.instance_type].end(), msg.instance_name);
-
-			// add instance
-			if(iit==model_instances[msg.instance_type].end()) {
+            // add instance
+			if(!isInstance(msg.instance_type, msg.instance_name)) {
 				ROS_INFO("KCL: (KB) Adding instance (%s, %s)", msg.instance_type.c_str(), msg.instance_name.c_str());
-				model_instances[msg.instance_type].push_back(msg.instance_name);
-				plan_filter.checkFilters(msg, true);
-			}
+                mongo::BSONObj p = BSON( "type" << msg.instance_type << "name" << msg.instance_name);
+                client.insert(dbName+INSTANCES, p);
+                client.ensureIndex(dbName+INSTANCES, BSON("type" << 1));
+			} else {
+                ROS_INFO("KCL: (KB) Instance (%s, %s) already exists", msg.instance_type.c_str(), msg.instance_name.c_str());
+            }
 
 		} else if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
 
@@ -228,6 +303,8 @@ namespace KCL_rosplan {
 			}
 			ROS_INFO("KCL: (KB) Adding domain attribute (%s)", msg.attribute_name.c_str());
 			model_facts.push_back(msg);
+            client.insert(dbName+FACTS, knowledgeItemToBson(msg));
+            client.ensureIndex(dbName+INSTANCES, BSON("attribute_name" << 1));
 			plan_filter.checkFilters(msg, true);
 
 		} else if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
@@ -267,22 +344,13 @@ namespace KCL_rosplan {
 	/*----------------*/
 
 	bool KnowledgeBase::getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res) {
-	
+        
 		// fetch the instances of the correct type
-		if(""==req.type_name) {
-			std::map<std::string,std::vector<std::string> >::iterator iit;
-			for(iit=model_instances.begin(); iit != model_instances.end(); iit++) {
-				for(size_t j=0; j<iit->second.size(); j++)
-					res.instances.push_back(iit->second[j]);
-			}
-		} else {
-			std::map<std::string,std::vector<std::string> >::iterator iit;
-			iit = model_instances.find(req.type_name);
-			if(iit != model_instances.end()) {
-				for(size_t j=0; j<iit->second.size(); j++)
-					res.instances.push_back(iit->second[j]);
-			}
-		}
+		std::vector<std::string> model_instances = getInstances(req.type_name);
+        std::vector<std::string>::iterator iit;
+        for(iit=model_instances.begin(); iit != model_instances.end(); iit++) {
+            res.instances.push_back(*iit);
+        }
 
 		return true;
 	}
@@ -290,9 +358,9 @@ namespace KCL_rosplan {
 	bool KnowledgeBase::getCurrentKnowledge(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res) {
 
 		// fetch the knowledgeItems of the correct attribute
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts = getFacts(req.predicate_name);
 		for(size_t i=0; i<model_facts.size(); i++) {
-			if(0==req.predicate_name.compare(model_facts[i].attribute_name) || ""==req.predicate_name)
-				res.attributes.push_back(model_facts[i]);
+			res.attributes.push_back(model_facts[i]);
 		}
 
 		// ...or fetch the knowledgeItems of the correct function
@@ -447,8 +515,16 @@ int main(int argc, char **argv)
 	// parameters
 	std::string domainPath;
 	n.param("/rosplan/domain_path", domainPath, std::string("common/domain.pddl"));
+    std::string dbHost = "localhost";
+	n.param("/rosplan/db_host", dbHost, dbHost);
+    std::string dbPort = "62345";
+	n.param("/rosplan/db_port", dbPort, dbPort);
+    std::string dbName = "knowledge_base";
+	n.param("/rosplan/knowledge_base/db_name", dbName, dbName);
+    std::string dbCollection = "knowledge";
+	n.param("/rosplan/knowledge_base/db_collection", dbCollection, dbCollection);
 
-	KCL_rosplan::KnowledgeBase kb;
+	KCL_rosplan::KnowledgeBase kb(dbHost, dbPort, dbName, dbCollection);
 	ROS_INFO("KCL: (KB) Parsing domain");
 	kb.domain_parser.domain_parsed = false;
 	kb.domain_parser.parseDomain(domainPath);
