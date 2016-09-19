@@ -28,7 +28,7 @@ namespace KCL_rosplan {
 			if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
 				// check if instance exists
-				present = isInstance(iit->instance_type, iit->instance_name);
+                present = isInstance(*iit);
 				
 			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
 
@@ -43,13 +43,7 @@ namespace KCL_rosplan {
 			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
 
 				// check if fact is true
-				std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-				for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
-					if(KnowledgeComparitor::containsKnowledge(*iit, *pit)) {
-						present = true;
-						break;
-					}
-				}
+                present = isFact(*iit);
 			}
 
 			if(!present) {
@@ -102,20 +96,53 @@ namespace KCL_rosplan {
     /*----------------*/
 	/* db queries     */
 	/*----------------*/
-    
-    std::vector<std::string> KnowledgeBase::getInstances(std::string type) {
-        db_cursor cursor = client.query(dbName+INSTANCES, type.compare("")!=0 ? QUERY("type" << type) : mongo::BSONObj());
-        std::vector<std::string> ret;
+
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> KnowledgeBase::getEntries(std::string ns, mongo::Query query) {
+        db_cursor cursor = client.query(ns, query);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> ret;
         while(cursor->more()) {
-            mongo::BSONObj p = cursor->next();
-            ret.push_back(p.getStringField("name"));
+            ret.push_back(bsonToKnowledgeItem(cursor->next()));
         }
         return ret;
     }
-    
-    bool KnowledgeBase::isInstance(std::string type, std::string name) {
-        db_cursor cursor = client.query(dbName+INSTANCES, QUERY("type" << type << "name" << name));
+
+    bool KnowledgeBase::isEntry(std::string ns, mongo::BSONObj b) {
+        db_cursor cursor = client.query(ns, b);
         return cursor->more();
+    }
+
+//    bool KnowledgeBase::containsKnowledge(std::string ns, rosplan_knowledge_msgs::KnowledgeItem &ki) {
+//        if(ki.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
+//            std::vector<rosplan_knowledge_msgs::KnowledgeItem> vec = getInstances(ki.instance_type);
+//            // check instance knowledge
+//            if(0!=ki.instance_type.compare(b.instance_type)) return false;
+//            if(ki.instance_name!="" && 0!=ki.instance_name.compare(b.instance_name)) return false;
+
+//        } else {
+
+//            // check fact or function
+//            if(a.attribute_name!="" && 0!=a.attribute_name.compare(b.attribute_name)) return false;
+//            if(a.is_negative != b.is_negative) return false;
+//            if(a.values.size() != b.values.size()) return false;
+//            for(size_t i=0;i<a.values.size();i++) {
+//                if(""!=a.values[i].value && a.values[i].value != b.values[i].value)
+//                    return false;
+//            }
+//        }
+
+//        return true;
+//    }
+    
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> KnowledgeBase::getInstances(std::string instance_type) {
+        return getEntries(dbName+INSTANCES, instance_type.compare("")!=0 ? QUERY("instance_type" << instance_type) : mongo::BSONObj());
+    }
+    
+    bool KnowledgeBase::isInstance(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        return isInstance(knowledgeItemToBson(ki));
+    }
+
+    bool KnowledgeBase::isInstance(mongo::BSONObj b) {
+        return isEntry(dbName+INSTANCES, b);
     }
     
     mongo::BSONObj KnowledgeBase::knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki) {
@@ -155,13 +182,27 @@ namespace KCL_rosplan {
     }
     
     std::vector<rosplan_knowledge_msgs::KnowledgeItem> KnowledgeBase::getFacts(std::string attribute_name) {
-        db_cursor cursor = client.query(dbName+FACTS, attribute_name.compare("")!=0 ? QUERY("attribute_name" << attribute_name) : mongo::BSONObj());
-        std::vector<rosplan_knowledge_msgs::KnowledgeItem> ret;
-        while(cursor->more()) {
-            mongo::BSONObj p = cursor->next();
-            ret.push_back(bsonToKnowledgeItem(p));
-        }
-        return ret;
+        return getEntries(dbName+FACTS, attribute_name.compare("")!=0 ? QUERY("attribute_name" << attribute_name) : mongo::BSONObj());
+    }
+
+    bool KnowledgeBase::isFunction(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        return isFact(knowledgeItemToBson(ki));
+    }
+
+    bool KnowledgeBase::isFunction(mongo::BSONObj b) {
+        return isEntry(dbName+FUNCTIONS, b);
+    }
+
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> KnowledgeBase::getFunctions(std::string attribute_name) {
+        return getEntries(dbName+FUNCTIONS, attribute_name.compare("")!=0 ? QUERY("attribute_name" << attribute_name) : mongo::BSONObj());
+    }
+
+    bool KnowledgeBase::isFact(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        return isFact(knowledgeItemToBson(ki));
+    }
+
+    bool KnowledgeBase::isFact(mongo::BSONObj b) {
+        return isEntry(dbName+FACTS, b);
     }
 
 	/*----------------*/
@@ -281,13 +322,12 @@ namespace KCL_rosplan {
 	void KnowledgeBase::addKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
 		
 		if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
-
+            mongo::BSONObj b = knowledgeItemToBson(msg);
             // add instance
-			if(!isInstance(msg.instance_type, msg.instance_name)) {
+            if(!isInstance(b)) {
 				ROS_INFO("KCL: (KB) Adding instance (%s, %s)", msg.instance_type.c_str(), msg.instance_name.c_str());
-                mongo::BSONObj p = BSON( "type" << msg.instance_type << "name" << msg.instance_name);
-                client.insert(dbName+INSTANCES, p);
-                client.ensureIndex(dbName+INSTANCES, BSON("type" << 1));
+                client.insert(dbName+INSTANCES, b);
+                client.ensureIndex(dbName+INSTANCES, BSON("instance_type" << 1));
 			} else {
                 ROS_INFO("KCL: (KB) Instance (%s, %s) already exists", msg.instance_type.c_str(), msg.instance_name.c_str());
             }
@@ -301,10 +341,13 @@ namespace KCL_rosplan {
 					return;
 				}
 			}
-			ROS_INFO("KCL: (KB) Adding domain attribute (%s)", msg.attribute_name.c_str());
-			model_facts.push_back(msg);
-            client.insert(dbName+FACTS, knowledgeItemToBson(msg));
-            client.ensureIndex(dbName+INSTANCES, BSON("attribute_name" << 1));
+            model_facts.push_back(msg);
+            mongo::BSONObj b = knowledgeItemToBson(msg);
+            if(!isFact(b)) {
+                ROS_INFO("KCL: (KB) Adding domain attribute (%s)", msg.attribute_name.c_str());
+                client.insert(dbName+FACTS, b);
+                client.ensureIndex(dbName+FACTS, BSON("attribute_name" << 1));
+            }
 			plan_filter.checkFilters(msg, true);
 
 		} else if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
@@ -321,6 +364,13 @@ namespace KCL_rosplan {
 			}
 			ROS_INFO("KCL: (KB) Adding domain function (%s)", msg.attribute_name.c_str());
 			model_functions.push_back(msg);
+            mongo::BSONObj b = knowledgeItemToBson(msg);
+            if(!isFunction(b)) {
+                client.insert(dbName+FUNCTIONS, b);
+                client.ensureIndex(dbName+FUNCTIONS, BSON("attribute_name" << 1));
+            } else {
+//                client.update(dbName+FUNCTIONS, QUERY("attribute_name" << ), b);
+            }
 			plan_filter.checkFilters(msg, true);
 		}
 	}
@@ -346,10 +396,10 @@ namespace KCL_rosplan {
 	bool KnowledgeBase::getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res) {
         
 		// fetch the instances of the correct type
-		std::vector<std::string> model_instances = getInstances(req.type_name);
-        std::vector<std::string>::iterator iit;
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_instances = getInstances(req.type_name);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
         for(iit=model_instances.begin(); iit != model_instances.end(); iit++) {
-            res.instances.push_back(*iit);
+            res.instances.push_back((*iit).instance_name);
         }
 
 		return true;
@@ -364,9 +414,9 @@ namespace KCL_rosplan {
 		}
 
 		// ...or fetch the knowledgeItems of the correct function
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_functions = getFunctions(req.predicate_name);
 		for(size_t i=0; i<model_functions.size(); i++) {
-			if(0==req.predicate_name.compare(model_functions[i].attribute_name) || ""==req.predicate_name)
-				res.attributes.push_back(model_functions[i]);
+            res.attributes.push_back(model_functions[i]);
 		}
 
 		return true;

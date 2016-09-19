@@ -40,6 +40,7 @@ namespace KCL_rosplan {
 
 #define INSTANCES ".instances"
 #define FACTS ".facts"
+#define FUNCTIONS ".functions"
 
 typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
 
@@ -61,6 +62,13 @@ typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
 		void removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg);
 		void removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
 
+        // Mongo helper functions
+        mongo::BSONObj knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki);
+        rosplan_knowledge_msgs::KnowledgeItem bsonToKnowledgeItem(mongo::BSONObj b);
+        //bool containsKnowledge(std::string ns, rosplan_knowledge_msgs::KnowledgeItem &ki);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> getEntries(std::string ns, mongo::Query query);
+        bool isEntry(std::string ns, mongo::BSONObj b);
+
 	public:
         
         KnowledgeBase(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection);
@@ -70,13 +78,17 @@ typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
 
 		// model
 		std::map<std::string, std::vector<std::string> > model_instances;
-        std::vector<std::string> getInstances(std::string type="");
-        bool isInstance(std::string type, std::string name);
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> getInstances(std::string instance_type="");
+        bool isInstance(rosplan_knowledge_msgs::KnowledgeItem &ki);
+        bool isInstance(mongo::BSONObj b);
         std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts;
-        mongo::BSONObj knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki);
-        rosplan_knowledge_msgs::KnowledgeItem bsonToKnowledgeItem(mongo::BSONObj b);
         std::vector<rosplan_knowledge_msgs::KnowledgeItem> getFacts(std::string attribute_name="");
+        bool isFact(rosplan_knowledge_msgs::KnowledgeItem &ki);
+        bool isFact(mongo::BSONObj b);
 		std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_functions;
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem> getFunctions(std::string attribute_name="");
+        bool isFunction(rosplan_knowledge_msgs::KnowledgeItem &ki);
+        bool isFunction(mongo::BSONObj b);
 		std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_goals;
 
 		// plan and mission filter
