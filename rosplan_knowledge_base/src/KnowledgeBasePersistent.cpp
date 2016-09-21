@@ -24,30 +24,18 @@ namespace KCL_rosplan {
 			if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
 				// check if instance exists
-				std::vector<std::string>::iterator sit;
-				sit = find(model_instances[iit->instance_type].begin(), model_instances[iit->instance_type].end(), iit->instance_name);
-				present = (sit!=model_instances[iit->instance_type].end());
-				
+                present = mongo_interface->isInstance(*iit);
+
 			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
 
 				// check if function exists; TODO inequalities
-				std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-				for(pit=model_functions.begin(); pit!=model_functions.end(); pit++) {
-					if(KnowledgeComparitor::containsKnowledge(*iit, *pit)) {
-						present = true;
-						pit = model_functions.end();
-					}
-				}
+                present = mongo_interface->isFunction(*iit);
+
 			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
 
 				// check if fact is true
-				std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-				for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
-					if(KnowledgeComparitor::containsKnowledge(*iit, *pit)) {
-						present = true;
-						break;
-					}
-				}
+                present = mongo_interface->isFact(*iit);
+
 			}
 
 			if(!present) {
@@ -69,66 +57,32 @@ namespace KCL_rosplan {
 	void KnowledgeBasePersistent::removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
 
 		if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {		
+            std::vector<rosplan_knowledge_msgs::KnowledgeItem> to_delete = mongo_interface->getInstances(msg.instance_type, msg.instance_name);
+            std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
+            for(iit = to_delete.begin(); iit != to_delete.end(); ++iit) {
+                ROS_INFO("KCL: (KB) Removing instance (%s, %s)", iit->instance_type.c_str(), iit->instance_name.c_str());
+                // remove affected domain attributes
+                std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts = mongo_interface->getFacts();
+                std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
+                for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
+                    if(KnowledgeComparitor::containsInstance(*pit, iit->instance_name)) {
+                        ROS_INFO("KCL: (KB) Removing domain attribute (%s)", pit->attribute_name.c_str());
+                        plan_filter.checkFilters(*pit, false);
+                        mongo_interface->rmKnowledge(*pit);
+                    }
+                }
+            }
+            // Remove instances
+            mongo_interface->removeInstances(msg.instance_type, msg.instance_name);
 
-			// search for instance
-			std::vector<std::string>::iterator iit;
-			for(iit = model_instances[msg.instance_type].begin(); iit!=model_instances[msg.instance_type].end(); iit++) {
+        } else {
 
-				std::string name = *iit;
+            // remove domain attribute (function/fact) from knowledge base
+            ROS_INFO("KCL: (KB) Removing domain attribute (%s)", msg.attribute_name.c_str());
+            plan_filter.checkFilters(msg, false);
+            mongo_interface->removeFactsAndFunctions(msg);
 
-				if(name.compare(msg.instance_name)==0 || msg.instance_name.compare("")==0) {
-
-					// remove instance from knowledge base
-					ROS_INFO("KCL: (KB) Removing instance (%s, %s)", msg.instance_type.c_str(), (msg.instance_name.compare("")==0) ? "ALL" : msg.instance_name.c_str());
-					iit = model_instances[msg.instance_type].erase(iit);
-					if(iit!=model_instances[msg.instance_type].begin()) iit--;
-					plan_filter.checkFilters(msg, false);
-
-					// remove affected domain attributes
-					std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-					for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
-						if(KnowledgeComparitor::containsInstance(*pit, name)) {
-							ROS_INFO("KCL: (KB) Removing domain attribute (%s)", pit->attribute_name.c_str());
-							plan_filter.checkFilters(*pit, false);
-							pit = model_facts.erase(pit);
-							if(pit!=model_facts.begin()) pit--;
-							if(pit==model_facts.end()) break;
-						}
-					}
-
-					// finish
-					if(iit==model_instances[msg.instance_type].end()) break;
-				}
-			}
-
-		} else if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
-
-			// remove domain attribute (function) from knowledge base
-			std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-			for(pit=model_functions.begin(); pit!=model_functions.end(); pit++) {
-				if(KnowledgeComparitor::containsKnowledge(msg, *pit)) {
-					ROS_INFO("KCL: (KB) Removing domain attribute (%s)", msg.attribute_name.c_str());
-					plan_filter.checkFilters(msg, false);
-					pit = model_functions.erase(pit);
-					if(pit!=model_functions.begin()) pit--;
-					if(pit==model_functions.end()) break;
-				}
-			}
-
-		} else if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
-
-			// remove domain attribute (predicate) from knowledge base
-			std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-			for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
-				if(KnowledgeComparitor::containsKnowledge(msg, *pit)) {
-					ROS_INFO("KCL: (KB) Removing domain attribute (%s)", msg.attribute_name.c_str());
-					plan_filter.checkFilters(msg, false);
-					pit = model_facts.erase(pit);
-					if(pit!=model_facts.begin()) pit--;
-					if(pit==model_facts.end()) break;
-				}
-			}
-		}
+        }
 	}
 
 	/**
@@ -149,15 +103,8 @@ namespace KCL_rosplan {
 	void KnowledgeBasePersistent::removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {
 
 		bool changed = false;
-		std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator git;
-		for(git=model_goals.begin(); git!=model_goals.end(); git++) {
-			if(KnowledgeComparitor::containsKnowledge(msg, *git)) {
-				ROS_INFO("KCL: (KB) Removing goal (%s)", msg.attribute_name.c_str());
-				git = model_goals.erase(git);
-				if(git!=model_goals.begin()) git--;
-				if(git==model_goals.end()) break;
-			}
-		}
+
+        mongo_interface->findAndRemoveGoal(msg);
 
 		if(changed) {			
 			rosplan_knowledge_msgs::Notification notMsg;

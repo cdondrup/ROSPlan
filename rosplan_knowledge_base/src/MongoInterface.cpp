@@ -75,21 +75,27 @@ namespace KCL_rosplan {
     void MongoInterface::rmEntry(std::string ns, mongo::BSONObj b) {
         client.remove(ns, b);
     }
+
+    mongo::BSONObj MongoInterface::findMongoEntry(std::string ns, mongo::Query query) {
+        return client.findOne(ns, query);
+    }
     
     // Knowledge specific functions
     
     // Instances
-    std::vector<rosplan_knowledge_msgs::KnowledgeItem> MongoInterface::getInstances(std::string instance_type) {
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> MongoInterface::getInstances(std::string instance_type, std::string instance_name) {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::INSTANCE);
         if(instance_type.compare("")!=0) b.append("instance_type", instance_type);
+        if(instance_name.compare("")!=0) b.append("instance_name", instance_name);
         return getKnowledge(b.obj());
     }
     
-    void MongoInterface::removeInstances(std::string instance_type) {
+    void MongoInterface::removeInstances(std::string instance_type, std::string instance_name) {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::INSTANCE);
         if(instance_type.compare("")!=0) b.append("instance_type", instance_type);
+        if(instance_name.compare("")!=0) b.append("instance_name", instance_name);
         return rmKnowledge(b.obj());
     }
 
@@ -108,6 +114,38 @@ namespace KCL_rosplan {
         return rmKnowledge(b.obj());
     }
 
+    bool MongoInterface::isFact(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        if(ki.attribute_name.compare("")==0) return false;
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObj p = BSON(
+                    "attribute_name" << ki.attribute_name
+                    << "is_negative" << ki.is_negative
+                    << "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT
+                    << "values" << ab.obj()
+                    );
+        return isFact(p);
+    }
+
+    void MongoInterface::removeFactsAndFunctions(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        if(ki.attribute_name.compare("")==0) return;
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObj p = BSON(
+                    "attribute_name" << ki.attribute_name
+                    << "is_negative" << ki.is_negative
+                    << "$or" << BSON_ARRAY(
+                        BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT)
+                        << BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION))
+                    << "values" << ab.obj()
+                    );
+        findAndRemoveKnowledge(p);
+    }
+
     // Functions
     std::vector<rosplan_knowledge_msgs::KnowledgeItem> MongoInterface::getFunctions(std::string attribute_name) {
         mongo::BSONObjBuilder b;
@@ -121,6 +159,21 @@ namespace KCL_rosplan {
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FUNCTION);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
         return rmKnowledge(b.obj());
+    }
+
+    bool MongoInterface::isFunction(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        if(ki.attribute_name.compare("")==0) return false;
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObj p = BSON(
+                    "attribute_name" << ki.attribute_name
+                    << "is_negative" << ki.is_negative
+                    << "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION
+                    << "values" << ab.obj()
+                    );
+        return isFunction(p);
     }
     
     // Goals
@@ -136,5 +189,26 @@ namespace KCL_rosplan {
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FACT);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
         return rmEntry(ns_g, b.obj());
+    }
+
+    void MongoInterface::removeGoal(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        return rmEntry(ns_g, ki);
+    }
+
+    void MongoInterface::findAndRemoveGoal(rosplan_knowledge_msgs::KnowledgeItem &ki) {
+        if(ki.attribute_name.compare("")==0) return;
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObj p = BSON(
+                    "attribute_name" << ki.attribute_name
+                    << "is_negative" << ki.is_negative
+                    << "$or" << BSON_ARRAY(
+                        BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT)
+                        << BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION))
+                    << "values" << ab.obj()
+                    );
+        rmEntry(ns_g, findMongoEntry(ns_g, p));
     }
 }
