@@ -1,6 +1,8 @@
 <launch>
 	<arg name="domain_path" default="$(find rosplan_planning_system)/common/domain.pddl" />
 	<param name="/rosplan/domain_path" value="$(arg domain_path)"/>
+	<arg name="persistent" default="false" />
+	<param name="/rosplan/knowledge_base/persistent" value="$(arg persistent)"/>
 
 	<!-- knowledge base -->
 	<node name="rosplan_knowledge_base" pkg="rosplan_knowledge_base" type="knowledgeBase" respawn="false" output="screen">

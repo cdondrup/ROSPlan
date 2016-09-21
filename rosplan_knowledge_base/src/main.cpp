@@ -5,7 +5,6 @@
 
 int main(int argc, char **argv)
 {
-    std::cout << "BLA" << std::endl;
 	ros::init(argc, argv, "rosplan_knowledge_base");
 	ros::NodeHandle n;
 
@@ -18,16 +17,15 @@ int main(int argc, char **argv)
 	n.param("/rosplan/db_port", dbPort, dbPort);
 	std::string dbName = "knowledge_base";
 	n.param("/rosplan/knowledge_base/db_name", dbName, dbName);
-	std::string dbCollection = "knowledge";
-	n.param("/rosplan/knowledge_base/db_collection", dbCollection, dbCollection);
-	
+	bool persistent = false;
+	n.param("/rosplan/knowledge_base/persistent", persistent, persistent);
 
 	KCL_rosplan::KnowledgeBase *kb;
-//	if(false) {
-//		kb = new KCL_rosplan::KnowledgeBase();
-//	} else {
-		kb = new KCL_rosplan::KnowledgeBasePersistent(dbHost, dbPort, dbName, dbCollection);
-//	}
+	if(!persistent) {
+		kb = new KCL_rosplan::KnowledgeBase();
+	} else {
+		kb = new KCL_rosplan::KnowledgeBasePersistent(dbHost, dbPort, dbName);
+	}
 	ROS_INFO("KCL: (KB) Parsing domain");
 	kb->domain_parser.domain_parsed = false;
 	kb->domain_parser.parseDomain(domainPath);

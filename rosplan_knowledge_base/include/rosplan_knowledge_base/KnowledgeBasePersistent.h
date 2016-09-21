@@ -48,7 +48,7 @@ namespace KCL_rosplan {
         void removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
 
     public:
-        KnowledgeBasePersistent(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection);
+        KnowledgeBasePersistent(std::string dbHost, std::string dbPort, std::string dbName);
         ~KnowledgeBasePersistent();
 
         // checking the model

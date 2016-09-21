@@ -2,8 +2,8 @@
 
 namespace KCL_rosplan {
 
-    KnowledgeBasePersistent::KnowledgeBasePersistent(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection) {
-        mongo_interface = new MongoInterface(dbHost, dbPort, dbName, dbCollection);
+    KnowledgeBasePersistent::KnowledgeBasePersistent(std::string dbHost, std::string dbPort, std::string dbName) {
+        mongo_interface = new MongoInterface(dbHost, dbPort, dbName);
     }
     
     KnowledgeBasePersistent::~KnowledgeBasePersistent() {

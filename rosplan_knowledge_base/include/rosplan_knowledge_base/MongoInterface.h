@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 
+#include <ros/ros.h>
 #include<rosplan_knowledge_msgs/KnowledgeItem.h>
 
 #include <mongo/client/dbclient.h>
@@ -22,10 +23,10 @@ typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
         mongo::BSONObj generateFFQuery(rosplan_knowledge_msgs::KnowledgeItem &ki);
     public:
         // DB params and client
-        std::string dbName, dbCollection;
+        std::string dbName;
         mongo::DBClientConnection client;
 
-        MongoInterface(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection);
+        MongoInterface(std::string dbHost, std::string dbPort, std::string dbName);
 
         //helper functions
         mongo::BSONObj knowledgeItemToBson(rosplan_knowledge_msgs::KnowledgeItem &ki);

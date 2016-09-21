@@ -1,18 +1,18 @@
 #include "rosplan_knowledge_base/MongoInterface.h"
 
 namespace KCL_rosplan {
-    MongoInterface::MongoInterface(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection)
-        : dbName(dbName), dbCollection(dbCollection)
+    MongoInterface::MongoInterface(std::string dbHost, std::string dbPort, std::string dbName)
+        : dbName(dbName)
     {
         ns_k = dbName+".knowledge";
         ns_g = dbName+".goals";
         mongo::client::initialize();
         try {
-            std::cout << "DB: " << dbHost << ":" << dbPort << std::endl;
+            ROS_INFO_STREAM("Connecting to DB: " << dbHost << ":" << dbPort);
             client.connect(dbHost+":"+dbPort);
-            std::cout << "connected ok" << std::endl;
+            ROS_INFO("connected.");
         } catch( const mongo::DBException &e ) {
-            std::cout << "caught " << e.what() << std::endl;
+            ROS_ERROR_STREAM("Connection error: Caught " << e.what());
         }
     }
     
