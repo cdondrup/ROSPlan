@@ -10,67 +10,66 @@ namespace KCL_rosplan {
         delete mongo_interface;
     }
 
-	/*-----------------*/
-	/* knowledge query */
-	/*-----------------*/
+    /*-----------------*/
+    /* knowledge query */
+    /*-----------------*/
 
-	bool KnowledgeBasePersistent::queryKnowledge(rosplan_knowledge_msgs::KnowledgeQueryService::Request  &req, rosplan_knowledge_msgs::KnowledgeQueryService::Response &res) {
+    bool KnowledgeBasePersistent::queryKnowledge(rosplan_knowledge_msgs::KnowledgeQueryService::Request  &req, rosplan_knowledge_msgs::KnowledgeQueryService::Response &res) {
 
-		res.all_true = true;
-		std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
-		for(iit = req.knowledge.begin(); iit!=req.knowledge.end(); iit++) {
+        res.all_true = true;
+        std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
+        for(iit = req.knowledge.begin(); iit!=req.knowledge.end(); iit++) {
 
-			bool present = false;
-			if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
+            bool present = false;
+            if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
-				// check if instance exists
+                // check if instance exists
                 present = mongo_interface->isInstance(*iit);
 
-			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
+            } else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
 
-				// check if function exists; TODO inequalities
+                // check if function exists; TODO inequalities
                 present = mongo_interface->isFunction(*iit);
 
-			} else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
+            } else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
 
-				// check if fact is true
+                // check if fact is true
                 present = mongo_interface->isFact(*iit);
 
-			}
+            }
 
-			if(!present) {
-				res.all_true = false;
-				res.results.push_back(false);
-				res.false_knowledge.push_back(*iit);
-			} else {
-				res.results.push_back(true);
-			}
-		}
+            if(!present) {
+                res.all_true = false;
+                res.results.push_back(false);
+                res.false_knowledge.push_back(*iit);
+            } else {
+                res.results.push_back(true);
+            }
+        }
 
-		return true;
-	}
+        return true;
+    }
 
-	/*----------------*/
-	/* removing items */
-	/*----------------*/
+    /*----------------*/
+    /* removing items */
+    /*----------------*/
 
-	void KnowledgeBasePersistent::removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
+    void KnowledgeBasePersistent::removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
 
-		if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {		
-            std::vector<rosplan_knowledge_msgs::KnowledgeItem> to_delete = mongo_interface->getInstances(msg.instance_type, msg.instance_name);
+        if(msg.knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
+            ROS_INFO("KCL: (KB) Removing instances (%s, %s)", msg.instance_type.c_str(), msg.instance_name.c_str());
+            std::vector<rosplan_knowledge_msgs::KnowledgeItem> to_delete = mongo_interface->getContainsInstanceFacts(msg.instance_name);
             std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
             for(iit = to_delete.begin(); iit != to_delete.end(); ++iit) {
-                ROS_INFO("KCL: (KB) Removing instance (%s, %s)", iit->instance_type.c_str(), iit->instance_name.c_str());
-                // remove affected domain attributes
-                std::vector<rosplan_knowledge_msgs::KnowledgeItem> model_facts = mongo_interface->getFacts();
-                std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator pit;
-                for(pit=model_facts.begin(); pit!=model_facts.end(); pit++) {
-                    if(KnowledgeComparitor::containsInstance(*pit, iit->instance_name)) {
-                        ROS_INFO("KCL: (KB) Removing domain attribute (%s)", pit->attribute_name.c_str());
-                        plan_filter.checkFilters(*pit, false);
-                        mongo_interface->rmKnowledge(*pit);
-                    }
-                }
+                ROS_INFO("KCL: (KB) Removing domain attribute (%s)", iit->attribute_name.c_str());
+                plan_filter.checkFilters(*iit, false);
+                mongo_interface->removeKnowledge(*iit);
+            }
+            to_delete = mongo_interface->getContainsInstanceGoals(msg.instance_name);
+            for(iit = to_delete.begin(); iit != to_delete.end(); ++iit) {
+                ROS_INFO("KCL: (KB) Removing goal (%s)", iit->attribute_name.c_str());
+                plan_filter.checkFilters(*iit, false);
+                mongo_interface->removeGoal(*iit);
             }
             // Remove instances
             mongo_interface->removeInstances(msg.instance_type, msg.instance_name);
@@ -83,45 +82,45 @@ namespace KCL_rosplan {
             mongo_interface->removeFactsAndFunctions(msg);
 
         }
-	}
+    }
 
-	/**
-	 * remove everything
-	 */
-	bool KnowledgeBasePersistent::clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res) {
+    /**
+     * remove everything
+     */
+    bool KnowledgeBasePersistent::clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res) {
 
-		ROS_INFO("KCL: (KB) Removing whole model");
+        ROS_INFO("KCL: (KB) Removing whole model");
 
-		// model
-		mongo_interface->rmKnowledge(mongo::BSONObj());
-		mongo_interface->removeGoals();
-	}
+        // model
+        mongo_interface->removeKnowledge(mongo::BSONObj());
+        mongo_interface->removeGoals();
+    }
 
-	/**
-	 * remove mission goal
-	 */
-	void KnowledgeBasePersistent::removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {
+    /**
+     * remove mission goal
+     */
+    void KnowledgeBasePersistent::removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {
 
-		bool changed = false;
+        bool changed = false;
 
         mongo_interface->findAndRemoveGoal(msg);
 
-		if(changed) {			
-			rosplan_knowledge_msgs::Notification notMsg;
-			notMsg.function = rosplan_knowledge_msgs::Notification::REMOVED;
-			notMsg.knowledge_item = msg;
-			plan_filter.notification_publisher.publish(notMsg);
-		}
-	}
+        if(changed) {            
+            rosplan_knowledge_msgs::Notification notMsg;
+            notMsg.function = rosplan_knowledge_msgs::Notification::REMOVED;
+            notMsg.knowledge_item = msg;
+            plan_filter.notification_publisher.publish(notMsg);
+        }
+    }
 
-	/*--------------*/
-	/* adding items */
-	/*--------------*/
+    /*--------------*/
+    /* adding items */
+    /*--------------*/
 
-	/*
-	 * add an instance, domain predicate, or function to the knowledge base
-	 */
-	void KnowledgeBasePersistent::addKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
+    /*
+     * add an instance, domain predicate, or function to the knowledge base
+     */
+    void KnowledgeBasePersistent::addKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg) {
         if(!mongo_interface->isKnowledge(msg)) {
             ROS_INFO("KCL: (KB) Adding knowledge");
             mongo_interface->addKnowledge(msg);
@@ -129,36 +128,36 @@ namespace KCL_rosplan {
         } else {
             ROS_INFO("KCL: (KB) Knowledge already in KB");
         }
-	}
+    }
 
-	/*
-	 * add mission goal to knowledge base
-	 */
-	void KnowledgeBasePersistent::addMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {
+    /*
+     * add mission goal to knowledge base
+     */
+    void KnowledgeBasePersistent::addMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {
         if(!mongo_interface->isGoal(msg)) {
             ROS_INFO("KCL: (KB) Adding goal");
             mongo_interface->addGoal(msg);
         } else {
             ROS_INFO("KCL: (KB) Goal already in KB");
         }
-	}
+    }
 
-	/*----------------*/
-	/* fetching items */
-	/*----------------*/
+    /*----------------*/
+    /* fetching items */
+    /*----------------*/
 
-	bool KnowledgeBasePersistent::getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res) {
-	
-		// fetch the instances of the correct type
+    bool KnowledgeBasePersistent::getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res) {
+    
+        // fetch the instances of the correct type
         std::vector<rosplan_knowledge_msgs::KnowledgeItem> i = mongo_interface->getInstances(req.type_name);
         std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
         for(iit=i.begin(); iit != i.end(); iit++) {
             res.instances.push_back((*iit).instance_name);
         }
-		return true;
-	}
+        return true;
+    }
 
-	bool KnowledgeBasePersistent::getCurrentKnowledge(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res) {
+    bool KnowledgeBasePersistent::getCurrentKnowledge(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res) {
         mongo::BSONObjBuilder b;
         b.append("$or", BSON_ARRAY(
                      BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT) << 
@@ -171,17 +170,17 @@ namespace KCL_rosplan {
         for(iit=i.begin(); iit != i.end(); iit++) {
             res.attributes.push_back(*iit);
         }
-		return true;
-	}
+        return true;
+    }
 
-	bool KnowledgeBasePersistent::getCurrentGoals(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res) {
+    bool KnowledgeBasePersistent::getCurrentGoals(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res) {
 
         std::vector<rosplan_knowledge_msgs::KnowledgeItem> i = mongo_interface->getGoals(req.predicate_name);
         std::vector<rosplan_knowledge_msgs::KnowledgeItem>::iterator iit;
         for(iit=i.begin(); iit != i.end(); iit++) {
             res.attributes.push_back(*iit);
         }
-		return true;
-	}
+        return true;
+    }
 
 } // close namespace

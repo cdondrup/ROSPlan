@@ -36,31 +36,31 @@
 
 namespace KCL_rosplan {
 
-	class KnowledgeBasePersistent : public KnowledgeBase
-	{
-	protected:
+    class KnowledgeBasePersistent : public KnowledgeBase
+    {
+    protected:
         MongoInterface *mongo_interface;
         
-		// adding and removing items to and from the knowledge base
-		void addKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg);
-		void addMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
-		void removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg);
-		void removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
+        // adding and removing items to and from the knowledge base
+        void addKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg);
+        void addMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
+        void removeKnowledge(rosplan_knowledge_msgs::KnowledgeItem &msg);
+        void removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg);
 
-	public:
+    public:
         KnowledgeBasePersistent(std::string dbHost, std::string dbPort, std::string dbName, std::string dbCollection);
         ~KnowledgeBasePersistent();
 
-		// checking the model
-		bool queryKnowledge(rosplan_knowledge_msgs::KnowledgeQueryService::Request  &req, rosplan_knowledge_msgs::KnowledgeQueryService::Response &res);
+        // checking the model
+        bool queryKnowledge(rosplan_knowledge_msgs::KnowledgeQueryService::Request  &req, rosplan_knowledge_msgs::KnowledgeQueryService::Response &res);
 
-		// fetching the model
-		bool getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res);
-		bool getCurrentKnowledge(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res);
-		bool getCurrentGoals(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res);
+        // fetching the model
+        bool getCurrentInstances(rosplan_knowledge_msgs::GetInstanceService::Request  &req, rosplan_knowledge_msgs::GetInstanceService::Response &res);
+        bool getCurrentKnowledge(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res);
+        bool getCurrentGoals(rosplan_knowledge_msgs::GetAttributeService::Request  &req, rosplan_knowledge_msgs::GetAttributeService::Response &res);
 
-		// adding and removing items to and from the knowledge base
-		bool clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
-	};
+        // adding and removing items to and from the knowledge base
+        bool clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
+    };
 }
 #endif

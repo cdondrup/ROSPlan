@@ -29,7 +29,7 @@ namespace KCL_rosplan {
                     << "function_value" << ki.function_value
                     << "is_negative" << ki.is_negative
                     << "knowledge_type" << ki.knowledge_type
-                    << "values" << ab.obj()
+                    << "values" << ab.arr()
                     );
         return p;
     }
@@ -72,12 +72,32 @@ namespace KCL_rosplan {
         return cursor->more();
     }
     
-    void MongoInterface::rmEntry(std::string ns, mongo::BSONObj b) {
+    void MongoInterface::removeEntry(std::string ns, mongo::BSONObj b) {
         client.remove(ns, b);
     }
 
     mongo::BSONObj MongoInterface::findMongoEntry(std::string ns, mongo::Query query) {
         return client.findOne(ns, query);
+    }
+    
+    mongo::BSONObj MongoInterface::generateFFQuery(rosplan_knowledge_msgs::KnowledgeItem &ki){
+        mongo::BSONArrayBuilder ab;
+        for(int vit = 0; vit < ki.values.size(); vit++) {
+            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
+        }
+        mongo::BSONObjBuilder b;
+        b.append("attribute_name", ki.attribute_name);
+        b.append("is_negative", ki.is_negative);
+        b.append("values", ab.arr());
+        return b.obj();
+    }
+
+    mongo::BSONObj MongoInterface::generateFFQuery(rosplan_knowledge_msgs::KnowledgeItem &ki, int type1) {
+        return (mongo::BSONObjBuilder().appendElements(generateFFQuery(ki))<<"knowledge_type"<<type1).obj();
+    }
+
+    mongo::BSONObj MongoInterface::generateFFQuery(rosplan_knowledge_msgs::KnowledgeItem &ki, int type1, int type2) {
+        return (mongo::BSONObjBuilder().appendElements(generateFFQuery(ki))<<"$or"<<BSON_ARRAY(BSON("knowledge_type"<<type1)<<BSON("knowledge_type"<<type2))).obj();
     }
     
     // Knowledge specific functions
@@ -96,7 +116,7 @@ namespace KCL_rosplan {
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::INSTANCE);
         if(instance_type.compare("")!=0) b.append("instance_type", instance_type);
         if(instance_name.compare("")!=0) b.append("instance_name", instance_name);
-        return rmKnowledge(b.obj());
+        return removeKnowledge(b.obj());
     }
 
     // Facts
@@ -111,39 +131,27 @@ namespace KCL_rosplan {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FACT);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
-        return rmKnowledge(b.obj());
+        return removeKnowledge(b.obj());
     }
 
     bool MongoInterface::isFact(rosplan_knowledge_msgs::KnowledgeItem &ki) {
         if(ki.attribute_name.compare("")==0) return false;
-        mongo::BSONArrayBuilder ab;
-        for(int vit = 0; vit < ki.values.size(); vit++) {
-            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
-        }
-        mongo::BSONObj p = BSON(
-                    "attribute_name" << ki.attribute_name
-                    << "is_negative" << ki.is_negative
-                    << "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT
-                    << "values" << ab.obj()
-                    );
-        return isFact(p);
+        return isFact(generateFFQuery(ki, rosplan_knowledge_msgs::KnowledgeItem::FACT));
     }
 
     void MongoInterface::removeFactsAndFunctions(rosplan_knowledge_msgs::KnowledgeItem &ki) {
         if(ki.attribute_name.compare("")==0) return;
-        mongo::BSONArrayBuilder ab;
-        for(int vit = 0; vit < ki.values.size(); vit++) {
-            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
-        }
-        mongo::BSONObj p = BSON(
-                    "attribute_name" << ki.attribute_name
-                    << "is_negative" << ki.is_negative
-                    << "$or" << BSON_ARRAY(
-                        BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT)
-                        << BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION))
-                    << "values" << ab.obj()
-                    );
-        findAndRemoveKnowledge(p);
+        findAndRemoveKnowledge(generateFFQuery(ki, rosplan_knowledge_msgs::KnowledgeItem::FACT, rosplan_knowledge_msgs::KnowledgeItem::FUNCTION));
+    }
+    
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> MongoInterface::getContainsInstanceFacts(std::string instance_name) {
+        return getKnowledge(BSON(
+            "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT <<
+            "$or" << BSON_ARRAY(
+                BSON("instance_name" << instance_name) <<
+                BSON("values" << BSON("$elemMatch" << BSON("value" << instance_name)))
+            )
+        ));
     }
 
     // Functions
@@ -158,22 +166,12 @@ namespace KCL_rosplan {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FUNCTION);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
-        return rmKnowledge(b.obj());
+        return removeKnowledge(b.obj());
     }
 
     bool MongoInterface::isFunction(rosplan_knowledge_msgs::KnowledgeItem &ki) {
         if(ki.attribute_name.compare("")==0) return false;
-        mongo::BSONArrayBuilder ab;
-        for(int vit = 0; vit < ki.values.size(); vit++) {
-            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
-        }
-        mongo::BSONObj p = BSON(
-                    "attribute_name" << ki.attribute_name
-                    << "is_negative" << ki.is_negative
-                    << "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION
-                    << "values" << ab.obj()
-                    );
-        return isFunction(p);
+        return isFunction(generateFFQuery(ki, rosplan_knowledge_msgs::KnowledgeItem::FUNCTION));
     }
     
     // Goals
@@ -181,34 +179,32 @@ namespace KCL_rosplan {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FACT);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
-        return getEntries(ns_g, b.obj());
+        return getGoals(b.obj());
     }
     
     void MongoInterface::removeGoals(std::string attribute_name) {
         mongo::BSONObjBuilder b;
         b.append("knowledge_type", rosplan_knowledge_msgs::KnowledgeItem::FACT);
         if(attribute_name.compare("")!=0) b.append("attribute_name", attribute_name);
-        return rmEntry(ns_g, b.obj());
+        return removeEntry(ns_g, b.obj());
     }
 
     void MongoInterface::removeGoal(rosplan_knowledge_msgs::KnowledgeItem &ki) {
-        return rmEntry(ns_g, ki);
+        return removeEntry(ns_g, ki);
     }
 
     void MongoInterface::findAndRemoveGoal(rosplan_knowledge_msgs::KnowledgeItem &ki) {
         if(ki.attribute_name.compare("")==0) return;
-        mongo::BSONArrayBuilder ab;
-        for(int vit = 0; vit < ki.values.size(); vit++) {
-            ab.append(BSON("key" << ki.values[vit].key << "value" << ki.values[vit].value));
-        }
-        mongo::BSONObj p = BSON(
-                    "attribute_name" << ki.attribute_name
-                    << "is_negative" << ki.is_negative
-                    << "$or" << BSON_ARRAY(
-                        BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT)
-                        << BSON("knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FUNCTION))
-                    << "values" << ab.obj()
-                    );
-        rmEntry(ns_g, findMongoEntry(ns_g, p));
+        removeEntry(ns_g, findMongoEntry(ns_g, generateFFQuery(ki, rosplan_knowledge_msgs::KnowledgeItem::FACT, rosplan_knowledge_msgs::KnowledgeItem::FUNCTION)));
+    }
+    
+    std::vector<rosplan_knowledge_msgs::KnowledgeItem> MongoInterface::getContainsInstanceGoals(std::string instance_name) {
+        return getGoals(BSON(
+            "knowledge_type" << rosplan_knowledge_msgs::KnowledgeItem::FACT <<
+            "$or" << BSON_ARRAY(
+                BSON("instance_name" << instance_name) <<
+                BSON("values" << BSON("$elemMatch" << BSON("value" << instance_name)))
+            )
+        ));
     }
 }
