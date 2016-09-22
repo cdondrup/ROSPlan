@@ -17,7 +17,13 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(FLEX REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_search_module(MONGO REQUIRED mongo-cxx-driver)
+pkg_search_module(MONGO mongo-cxx-driver)
+if(${MONGO_FOUND})
+	message(STATUS "Mongo CXX drivers have been found. Compiling with persistent KB.")
+	add_definitions(-DUSE_MONGO_CXX)
+else(${MONGO_FOUND})
+	message(WARNING "Mongo CXX drivers could not be found. Compiling without persistent KB.")
+endif(${MONGO_FOUND})
 
 find_package(Boost REQUIRED COMPONENTS
   filesystem
@@ -42,7 +48,9 @@ catkin_package(
 include_directories(include)
 include_directories(${catkin_INCLUDE_DIRS})
 include_directories(src/VALfiles)
-include_directories(${MONGO_INCLUDE_DIRS})
+if(${MONGO_FOUND})
+	include_directories(${MONGO_INCLUDE_DIRS})
+endif(${MONGO_FOUND})
 
 ## val sources
 set(VAL_SOURCES
@@ -82,20 +90,29 @@ set(VAL_SOURCES
 set(KNOWLEDGE_SOURCES
 	src/main.cpp
 	src/KnowledgeBase.cpp
-	src/KnowledgeBasePersistent.cpp
 	src/PlanFilter.cpp
 	src/KnowledgeComparitor.cpp
 	src/DomainParser.cpp
 	src/VALVisitorOperator.cpp
-	src/VALVisitorPredicate.cpp
-	src/MongoInterface.cpp)
+	src/VALVisitorPredicate.cpp)
+
+if(${MONGO_FOUND})
+	set(KNOWLEDGE_SOURCES
+		${KNOWLEDGE_SOURCES}
+		src/KnowledgeBasePersistent.cpp
+		src/MongoInterface.cpp
+	)
+endif(${MONGO_FOUND})
 
 ## Declare cpp executables
 add_executable(knowledgeBase ${KNOWLEDGE_SOURCES} ${VAL_SOURCES})
 add_dependencies(knowledgeBase ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries against which to link a library or executable target
-target_link_libraries(knowledgeBase ${MONGO_LIBRARIES} ${catkin_LIBRARIES})
+if(${MONGO_FOUND})
+	target_link_libraries(knowledgeBase ${MONGO_LIBRARIES})
+endif(${MONGO_FOUND})
+target_link_libraries(knowledgeBase ${catkin_LIBRARIES})
 
 ##########
 ## Test ##

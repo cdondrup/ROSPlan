@@ -1,7 +1,10 @@
 #include <ros/ros.h>
 
 #include "rosplan_knowledge_base/KnowledgeBase.h"
-#include "rosplan_knowledge_base/KnowledgeBasePersistent.h"
+
+#ifdef USE_MONGO_CXX
+	#include "rosplan_knowledge_base/KnowledgeBasePersistent.h"
+#endif
 
 int main(int argc, char **argv)
 {
@@ -15,17 +18,23 @@ int main(int argc, char **argv)
 	n.param("/rosplan/db_host", dbHost, dbHost);
 	std::string dbPort = "62345";
 	n.param("/rosplan/db_port", dbPort, dbPort);
-	std::string dbName = "knowledge_base";
+	std::string dbName = "kcl_knowledge_base";
 	n.param("/rosplan/knowledge_base/db_name", dbName, dbName);
 	bool persistent = false;
 	n.param("/rosplan/knowledge_base/persistent", persistent, persistent);
 
 	KCL_rosplan::KnowledgeBase *kb;
-	if(!persistent) {
+	#ifdef USE_MONGO_CXX
+		if(!persistent) {
+			kb = new KCL_rosplan::KnowledgeBase();
+		} else {
+			kb = new KCL_rosplan::KnowledgeBasePersistent(dbHost, dbPort, dbName);
+		}
+	#else
 		kb = new KCL_rosplan::KnowledgeBase();
-	} else {
-		kb = new KCL_rosplan::KnowledgeBasePersistent(dbHost, dbPort, dbName);
-	}
+		if(persistent)
+			ROS_WARN("Knowledge base has been compiled without mongodb support. No persistency enabled.");
+	#endif
 	ROS_INFO("KCL: (KB) Parsing domain");
 	kb->domain_parser.domain_parsed = false;
 	kb->domain_parser.parseDomain(domainPath);
@@ -59,6 +68,6 @@ int main(int argc, char **argv)
 
 	ROS_INFO("KCL: (KB) Ready to receive");
 	ros::spin();
-//    delete kb;
+	delete kb;
 	return 0;
 }
