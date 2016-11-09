@@ -77,7 +77,10 @@ namespace KCL_rosplan {
     }
 
     mongo::BSONObj MongoInterface::findMongoEntry(std::string ns, mongo::Query query) {
-        return client.findOne(ns, query);
+         mongo::BSONObj o = client.findOne(ns, query);
+         if(o.isEmpty())
+             throw MongoException();
+         return o;
     }
     
     mongo::BSONObj MongoInterface::generateFFQuery(rosplan_knowledge_msgs::KnowledgeItem &ki){

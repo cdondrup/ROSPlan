@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <exception>
 
 #include <ros/ros.h>
 #include<rosplan_knowledge_msgs/KnowledgeItem.h>
@@ -13,9 +14,16 @@
 
 namespace KCL_rosplan {
 
+class MongoException : public std::exception
+{
+    virtual const char* what() const throw() {
+        return "Database query failed: No such entry.";
+    }
+};
+
 typedef std::auto_ptr<mongo::DBClientCursor> db_cursor;
 
-    class MongoInterface
+class MongoInterface
     {
     private:
         std::string ns_k, ns_g;

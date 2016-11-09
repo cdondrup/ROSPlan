@@ -24,17 +24,29 @@ namespace KCL_rosplan {
             if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::INSTANCE) {
 
                 // check if instance exists
-                present = mongo_interface->isInstance(*iit);
+                try {
+                    present = mongo_interface->isInstance(*iit);
+                } catch (std::exception &e) {
+                    ROS_WARN_STREAM(e.what());
+                }
 
             } else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FUNCTION) {
 
                 // check if function exists; TODO inequalities
-                present = mongo_interface->isFunction(*iit);
+                try {
+                    present = mongo_interface->isFunction(*iit);
+                } catch (std::exception &e) {
+                    ROS_WARN_STREAM(e.what());
+                }
 
             } else if(iit->knowledge_type == rosplan_knowledge_msgs::KnowledgeItem::FACT) {
 
                 // check if fact is true
-                present = mongo_interface->isFact(*iit);
+                try {
+                    present = mongo_interface->isFact(*iit);
+                } catch (std::exception &e) {
+                    ROS_WARN_STREAM(e.what());
+                }
 
             }
 
@@ -63,23 +75,39 @@ namespace KCL_rosplan {
             for(iit = to_delete.begin(); iit != to_delete.end(); ++iit) {
                 ROS_INFO("KCL: (KB) Removing domain attribute (%s)", iit->attribute_name.c_str());
                 plan_filter.checkFilters(*iit, false);
-                mongo_interface->removeKnowledge(*iit);
+                try {
+                    mongo_interface->removeKnowledge(*iit);
+                } catch (std::exception &e) {
+                    ROS_WARN_STREAM(e.what());
+                }
             }
             to_delete = mongo_interface->getContainsInstanceGoals(msg.instance_name);
             for(iit = to_delete.begin(); iit != to_delete.end(); ++iit) {
                 ROS_INFO("KCL: (KB) Removing goal (%s)", iit->attribute_name.c_str());
                 plan_filter.checkFilters(*iit, false);
-                mongo_interface->removeGoal(*iit);
+                try {
+                    mongo_interface->removeGoal(*iit);
+                } catch (std::exception &e) {
+                    ROS_WARN_STREAM(e.what());
+                }
             }
             // Remove instances
-            mongo_interface->removeInstances(msg.instance_type, msg.instance_name);
+            try {
+                mongo_interface->removeInstances(msg.instance_type, msg.instance_name);
+            } catch (std::exception &e) {
+                ROS_WARN_STREAM(e.what());
+            }
 
         } else {
 
             // remove domain attribute (function/fact) from knowledge base
             ROS_INFO("KCL: (KB) Removing domain attribute (%s)", msg.attribute_name.c_str());
             plan_filter.checkFilters(msg, false);
-            mongo_interface->removeFactsAndFunctions(msg);
+            try {
+                mongo_interface->removeFactsAndFunctions(msg);
+            } catch (std::exception &e) {
+                ROS_WARN_STREAM(e.what());
+            }
 
         }
     }
