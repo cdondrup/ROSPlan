@@ -55,6 +55,7 @@ int main(int argc, char **argv)
 	ros::ServiceServer updateServer1 = n.advertiseService("/kcl_rosplan/update_knowledge_base", &KCL_rosplan::KnowledgeBase ::updateKnowledge, kb);
 	ros::ServiceServer updateServer2 = n.advertiseService("/kcl_rosplan/update_knowledge_base_array", &KCL_rosplan::KnowledgeBase::updateKnowledgeArray, kb);
 	ros::ServiceServer clearServer = n.advertiseService("/kcl_rosplan/clear_knowledge_base", &KCL_rosplan::KnowledgeBase::clearKnowledge, kb);
+    ros::ServiceServer clearGoalsServer = n.advertiseService("/kcl_rosplan/clear_goals", &KCL_rosplan::KnowledgeBase::clearGoals, kb);
 
 	// fetch knowledge
 	ros::ServiceServer currentInstanceServer = n.advertiseService("/kcl_rosplan/get_current_instances", &KCL_rosplan::KnowledgeBase::getCurrentInstances, kb);
