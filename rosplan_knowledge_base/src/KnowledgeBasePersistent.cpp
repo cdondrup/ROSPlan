@@ -125,6 +125,16 @@ namespace KCL_rosplan {
     }
 
     /**
+     * remove all goals
+     */
+    bool KnowledgeBasePersistent::clearGoals(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res) {
+
+        ROS_INFO("KCL: (KB) Removing all goals");
+
+        mongo_interface->removeGoals();
+    }
+
+    /**
      * remove mission goal
      */
     void KnowledgeBasePersistent::removeMissionGoal(rosplan_knowledge_msgs::KnowledgeItem &msg) {

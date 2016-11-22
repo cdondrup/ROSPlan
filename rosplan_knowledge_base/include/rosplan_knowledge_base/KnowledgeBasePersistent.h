@@ -61,6 +61,8 @@ namespace KCL_rosplan {
 
         // adding and removing items to and from the knowledge base
         bool clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
+        bool clearGoals(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
+
     };
 }
 #endif

@@ -81,7 +81,8 @@ namespace KCL_rosplan {
 		// adding and removing items to and from the knowledge base
 		virtual bool updateKnowledge(rosplan_knowledge_msgs::KnowledgeUpdateService::Request  &req, rosplan_knowledge_msgs::KnowledgeUpdateService::Response &res);
 		virtual bool updateKnowledgeArray(rosplan_knowledge_msgs::KnowledgeUpdateServiceArray::Request &req, rosplan_knowledge_msgs::KnowledgeUpdateServiceArray::Response &res);
-		virtual bool clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
+        virtual bool clearKnowledge(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
+        virtual bool clearGoals(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res);
 	};
 }
 #endif

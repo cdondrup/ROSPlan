@@ -171,6 +171,17 @@ namespace KCL_rosplan {
 		model_goals.clear();
 	}
 
+    /**
+     * remove all goals
+     */
+    bool KnowledgeBase::clearGoals(std_srvs::Empty::Request  &req, std_srvs::Empty::Response &res) {
+
+        ROS_INFO("KCL: (KB) Removing all goals");
+
+        // model
+        model_goals.clear();
+    }
+
 	/**
 	 * remove mission goal
 	 */
