@@ -1,76 +1,46 @@
-ROSPlan Framework
-=================
+# ROSPlan Framework
 
 The main ROSPlan website and documentation is available here:
 http://kcl-planning.github.io/ROSPlan/
 
-The ROSPlan framework provides a generic method for task planning in a ROS system. ROSPlan encapsulates both planning and dispatch. It possesses a simple interface, and already includes interfaces to common ROS libraries.
+The ROSPlan framework has been extended by Christian Dondrup to be able to interact with Petri-Net Plans and to make the knowledgebase persistent.
 
-### Installation
+## Installation
 
-Get the prerequisites:
+* Get the prerequisites:
 
-(for Indigo)
-```sh
-sudo apt-get install flex ros-indigo-mongodb-store ros-indigo-tf2-bullet freeglut3-dev
-```
-(for Hydro)
-```sh
-sudo apt-get install flex ros-hydro-mongodb-store ros-hydro-tf2-bullet freeglut3-dev
-```
-Select a catkin workspace or create a new one:
-```sh
-mkdir -p ROSPlan/src
-cd ROSPlan/
-```
-Get the code:
-```sh
-cd src/
-git clone https://github.com/clearpathrobotics/occupancy_grid_utils
-git clone https://github.com/KCL-Planning/rosplan
-# optionally get the turtlebot interface
-git clone https://github.com/KCL-Planning/rosplan_interface_turtlebot2
-```
-Compile everything:
-```sh
-source /opt/ros/hydro/setup.bash
+ ```sh
+sudo apt-get install flex ros-indigo-mongodb-store ros-indigo-tf2-bullet  freeglut3-dev
+ ```
+
+* Clone the sources into your catkin workspace
+* Compile everything:
+ ```sh
 catkin_make
+ ```
+
+## Running ROSPlan
+
+### Persistent version
+
+This require mongodb to be running:
+
+```
+roslaunch mongodb_store mongodb_store.launch
 ```
 
-### Running a demo with the turtlebot
+Start the planning framework:
 
-The turtlebot demo is now a simple exploration mission. The turtlebot will visit randomly generated waypoints around a map.
-
-The domain for this demo is in the `rosplan_planning_system` package, as `common/domain.pddl`.
-
-To run the demo first follow the installation instructions and quick-start guide for the Turtlebot Simulator and Gazebo:
-
-[Turtlebot Gazebo](http://wiki.ros.org/turtlebot_gazebo) 
-
-[Turtlebot Simulator](http://wiki.ros.org/turtlebot_simulator) 
-
-Then source the ROSPlan workspace and follow the "Getting Started" guide on our [ROSPlan Wiki Page](https://github.com/KCL-Planning/ROSPlan/wiki).
-
-The turtlebot will move around the waypoints, exploring the environment. You should see output from the planning system, something like:
 ```
-...
-KCL: (PS) Dispatching plan
-KCL: (PS) Dispatching action [0, goto_waypoint, 10.024417, 10.000000]
-KCL: (MoveBase) action recieved
-KCL: (PS) Feedback received [0,action enabled]
-KCL: (MoveBase) action finished: SUCCEEDED
-KCL: (PS) Feedback received [0,action achieved]
-...
+roslaunch rosplan_planning_system planning_system_knowledge.launch domain_path:=/path/to/my/domain/file.pddl persistent:=true
 ```
-<img src="http://cdn.makeagif.com/media/5-27-2015/kSJr9g.gif" alt="Turtlebot Demo" width="60%"/>
 
-### Related repositories:
+This will create a DB for the KB and keep it in mongodb.
 
-Automatic localisation and docking action interfaces with the Turtlebot 2 (Kobuki base) 
-https://github.com/KCL-Planning/ROSPlan_interface_Turtlebot2
+### Non-persistent version
 
-Integration with the Component Oriented Layered-base Architecture for Autonomy (COLA2). Developed in the Research Center of Underwater Robotics (CIRS) in the University of Girona (UdG). This architecture is used to control the Autonomous Underwater Vehicles (AUVs) developed in this center. (https://bitbucket.org/udg_cirs/cola2)
-https://github.com/KCL-Planning/ROSPlan_interface_COLA2
+```
+roslaunch rosplan_planning_system planning_system_knowledge.launch domain_path:=/path/to/my/domain/file.pddl persistent:=false
+```
 
-Action interfaces for piloting a quadrotor from Jindrich Vodrazka, (takeoff, land, fly_square, and fly_waypoint).
-https://github.com/fairf4x/ROSPlan_interface_quadrotor
+This will only prserve the knowledge while rosplan is running. Once it is restarted the KB needs to be reinitialised. This does not require mongodb to be running.
