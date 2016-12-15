@@ -8,9 +8,27 @@ The ROSPlan framework has been extended by Christian Dondrup to be able to inter
 ## Installation
 
 * Get the prerequisites:
+ * Get ubuntu packages 
 
  ```
 sudo apt-get install flex ros-indigo-mongodb-store ros-indigo-tf2-bullet  freeglut3-dev
+ ```
+
+ * Get the mongodb C++ tools
+ ```
+curl -s http://lcas.lincoln.ac.uk/repos/public.key | sudo apt-key add -
+ ```
+
+ ```
+sudo apt-add-repository http://lcas.lincoln.ac.uk/repos/release
+ ```
+
+ ```
+sudo apt-get update
+ ```
+
+ ```
+sudo apt-get install mongo-cxx-driver
  ```
 
 * Clone the sources into your catkin workspace
