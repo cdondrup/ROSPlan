@@ -17,6 +17,7 @@ from rosplan_knowledge_msgs.msg import *
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, QTimer, QUrl, Signal, Slot
 from python_qt_binding.QtGui import *
+from python_qt_binding.QtWidgets import *
 
 class ProblemViewerWidget(QWidget):
 
