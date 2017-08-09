@@ -18,7 +18,11 @@ def update(predicate, truth_value, add_action, remove_action):
     for p in predicate:
         cond = p.split("__")
         rospy.loginfo("Updating %s %s" % (str(p), str(truth_value)))
-        tp = domain_utils.get_predicate_details(cond[0]).predicate.typed_parameters
+        try:
+            tp = domain_utils.get_predicate_details(cond[0]).predicate.typed_parameters
+        except AttributeError as e:
+            rospy.logwarn(e)
+            return
         if len(tp) != len(cond[1:]):
             rospy.logerr("Fact '%s' should have %s parameters but has only %s as parsed from: '%s'" % (cond[0], len(tp), len(cond[1:]), p))
             return
